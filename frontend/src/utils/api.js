@@ -1,4 +1,5 @@
 import axios from 'axios';
+import crypto from 'crypto';
 
 const API_URL = 'http://localhost';
 
@@ -14,6 +15,12 @@ api.interceptors.request.use((config) => {
   }
   return config;
 });
+
+// Function to generate service auth
+const generateServiceAuth = (token, timestamp) => {
+  const raw = `${token}${timestamp}${process.env.REACT_APP_SERVICE_AUTH_SECRET || 'very_secret_key_456'}`;
+  return crypto.createHash('md5').update(raw).digest('hex');
+};
 
 export const auth = {
   login: (username, password) => 
@@ -34,7 +41,6 @@ export const blog = {
 export const admin = {
   getDashboard: () => {
     const timestamp = Math.floor(Date.now() / 1000);
-    // Vulnerable X-Service-Auth generation
     const token = localStorage.getItem('token');
     const serviceAuth = generateServiceAuth(token, timestamp);
     
