@@ -1,5 +1,5 @@
 import axios from 'axios';
-import crypto from 'crypto';
+import MD5 from 'crypto-js/md5';
 
 const API_URL = 'http://localhost';
 
@@ -19,7 +19,7 @@ api.interceptors.request.use((config) => {
 // Function to generate service auth
 const generateServiceAuth = (token, timestamp) => {
   const raw = `${token}${timestamp}${process.env.REACT_APP_SERVICE_AUTH_SECRET || 'very_secret_key_456'}`;
-  return crypto.createHash('md5').update(raw).digest('hex');
+  return MD5(raw).toString();
 };
 
 export const auth = {
