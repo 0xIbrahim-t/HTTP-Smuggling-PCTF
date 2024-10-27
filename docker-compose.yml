@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  nginx:
+    build: ./nginx
+    ports:
+      - "443:443"
+      - "80:80"
+    depends_on:
+      - backend
+      - frontend
+    volumes:
+      - ./nginx/certs:/etc/nginx/certs
+    networks:
+      - ctf_network
+
+  frontend:
+    build: ./frontend
+    environment:
+      - NODE_ENV=production
+    networks:
+      - ctf_network
+
+  backend:
+    build: ./backend
+    environment:
+      - FLASK_APP=wsgi.py
+      - FLASK_ENV=production
+      - DATABASE_URL=postgresql://ctfuser:ctfpass@db:5432/ctfdb
+      - JWT_SECRET=super_secret_key_123
+      - SERVICE_AUTH_SECRET=very_secret_key_456
+    depends_on:
+      - db
+    networks:
+      - ctf_network
+
+  admin-bot:
+    build: ./admin-bot
+    environment:
+      - ADMIN_JWT_SECRET=admin_secret_key_789
+      - ADMIN_USERNAME=admin
+      - ADMIN_PASSWORD=complex_admin_pass_123
+      - BASE_URL=https://nginx
+    depends_on:
+      - nginx
+    networks:
+      - ctf_network
+
+  collector:
+    build: ./collector
+    ports:
+      - "8000:8000"
+    networks:
+      - ctf_network
+
+  db:
+    image: postgres:13
+    environment:
+      - POSTGRES_USER=ctfuser
+      - POSTGRES_PASSWORD=ctfpass
+      - POSTGRES_DB=ctfdb
+    volumes:
+      - ./init-db:/docker-entrypoint-initdb.d
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - ctf_network
+
+networks:
+  ctf_network:
+    driver: bridge
+
+volumes:
+  pgdata:
