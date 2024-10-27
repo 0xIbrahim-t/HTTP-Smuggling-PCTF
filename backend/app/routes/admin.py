@@ -11,7 +11,7 @@ def dashboard():
     # Return sensitive information when accessed
     return jsonify({
         'message': 'Welcome Admin!',
-        'flag': 'flag{http2_smuggl1ng_w1th_c4ch3_p01s0n}',
+        'flag': 'PCTF{http2_smuggl1ng_w1th_c4ch3_p01s0n}',
         'server_config': {
             'database_url': 'postgresql://ctfuser:ctfpass@db:5432/ctfdb',
             'admin_credentials': 'admin:complex_admin_pass_123'
