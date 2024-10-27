@@ -46,13 +46,6 @@ services:
     networks:
       - ctf_network
 
-  collector:
-    build: ./collector
-    ports:
-      - "8000:8000"
-    networks:
-      - ctf_network
-
   db:
     image: postgres:13
     environment:
