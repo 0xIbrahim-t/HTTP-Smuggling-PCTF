@@ -22,15 +22,17 @@ CREATE TABLE blog_posts (
     report_count INTEGER DEFAULT 0
 );
 
--- Create admin and test users
+-- Create admin and test users with properly generated hashes
 INSERT INTO users (username, password_hash, role) 
 VALUES 
-    -- Admin user: admin:complex_admin_pass_123
-    ('admin', 'pbkdf2:sha256:260000$gqNMLGnEtXX8fM73$b5c9d761e5a52774cdb9b4dff60423bd7f34560f85c6ef49345d220f896cf9ee', 'admin'),
-    -- Regular user: user:user123
-    ('user', 'pbkdf2:sha256:260000$xGXxUk8bxMyF$6dd684f90584b3af4280186d3468c8993159c20cd56995ff93d4f2f0c2607d45', 'user'),
-    -- Test user: test:test123
-    ('test', 'pbkdf2:sha256:260000$yHXzKv9bxNzG$7ee694f90584b3af4280186d3468c8993159c20cd56995ff93d4f2f0c2607e56', 'user');
+    -- Admin user: username=admin, password=complex_admin_pass_123
+    ('admin', 'pbkdf2:sha256:600000$FkGrv0qQj8B2vHLX$b03c9186b377c557067fc56b6344caba91b22b4cfbd18d327b611962ead4c64c', 'admin'),
+    
+    -- Regular user: username=user, password=user123
+    ('user', 'pbkdf2:sha256:600000$eqwz5YrGTnCV8hBx$48e866ab8c14e59dddb8debea02453487878c75dec166140c38d0222303de497', 'user'),
+    
+    -- Test user: username=test, password=test123
+    ('test', 'pbkdf2:sha256:600000$YqUzQEzOMKqcWLEo$37f6d2e1249c156f339322ca0c91dac71c4f751778cd2266384623fd15090d32', 'user');
 
 -- Create initial blog posts
 INSERT INTO blog_posts (title, content, author_id, created_at) 
@@ -74,7 +76,7 @@ Note: Admin users now have additional privileges for content management.',
         NOW() - INTERVAL '1 day'
     );
 
--- Add some initial reports (optional, helps show the reporting feature)
+-- Add some initial reports
 UPDATE blog_posts 
 SET report_count = 2, is_reported = true 
 WHERE id = 2;
