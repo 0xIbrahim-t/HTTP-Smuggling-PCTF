@@ -1,4 +1,7 @@
-CREATE TABLE IF NOT EXISTS users (
+DROP TABLE IF EXISTS users CASCADE;
+DROP TABLE IF EXISTS blog_posts CASCADE;
+
+CREATE TABLE users (
     id SERIAL PRIMARY KEY,
     username VARCHAR(80) UNIQUE NOT NULL,
     password_hash VARCHAR(120) NOT NULL,
@@ -6,7 +9,7 @@ CREATE TABLE IF NOT EXISTS users (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS blog_posts (
+CREATE TABLE blog_posts (
     id SERIAL PRIMARY KEY,
     title VARCHAR(200) NOT NULL,
     content TEXT NOT NULL,
@@ -16,10 +19,10 @@ CREATE TABLE IF NOT EXISTS blog_posts (
     report_count INTEGER DEFAULT 0
 );
 
--- Create admin user with password 'complex_admin_pass_123'
+-- Create admin user
 INSERT INTO users (username, password_hash, role) 
 VALUES (
-    'admin', 
+    'admin',
     'pbkdf2:sha256:260000$gqNMLGnEtXX8fM73$b5c9d761e5a52774cdb9b4dff60423bd7f34560f85c6ef49345d220f896cf9ee',
     'admin'
 );

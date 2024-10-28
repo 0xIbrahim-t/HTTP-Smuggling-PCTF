@@ -3,28 +3,25 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from .config import Config
 
-db = SQLAlchemy()
+# Initialize SQLAlchemy with null app
+db = SQLAlchemy(session_options={"expire_on_commit": False})
 
 def create_app():
     app = Flask(__name__)
-    
-    # Load config
     app.config.from_object(Config)
     
     # Initialize extensions
     CORS(app)
     db.init_app(app)
 
-    with app.app_context():
-        # Import routes here to avoid circular imports
-        from .routes import blog, admin, auth
-        
-        # Register blueprints
-        app.register_blueprint(blog.bp)
-        app.register_blueprint(admin.bp)
-        app.register_blueprint(auth.bp)
+    # Import and register blueprints
+    from .routes import blog, admin, auth
+    app.register_blueprint(blog.bp)
+    app.register_blueprint(admin.bp)
+    app.register_blueprint(auth.bp)
 
-        # Create database tables
+    # Create database tables
+    with app.app_context():
         db.create_all()
 
-        return app
+    return app

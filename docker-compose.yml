@@ -7,10 +7,8 @@ services:
       - "443:443"
       - "80:80"
     depends_on:
-      - backend
       - frontend
-    volumes:
-      - ./nginx/certs:/etc/nginx/certs
+      - backend
     networks:
       - ctf_network
 
@@ -20,6 +18,11 @@ services:
       - NODE_ENV=production
     networks:
       - ctf_network
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "http://localhost:3000"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   backend:
     build: ./backend
@@ -30,19 +33,23 @@ services:
       - JWT_SECRET=super_secret_key_123
       - SERVICE_AUTH_SECRET=very_secret_key_456
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     networks:
       - ctf_network
 
   admin-bot:
     build: ./admin-bot
     environment:
-      - ADMIN_JWT_SECRET=admin_secret_key_789
       - ADMIN_USERNAME=admin
       - ADMIN_PASSWORD=complex_admin_pass_123
-      - BASE_URL=https://nginx
+      - BASE_URL=http://nginx
+      - PYTHONUNBUFFERED=1
     depends_on:
-      - nginx
+      frontend:
+        condition: service_healthy
+      backend:
+        condition: service_started
     networks:
       - ctf_network
 
@@ -57,6 +64,11 @@ services:
       - pgdata:/var/lib/postgresql/data
     networks:
       - ctf_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ctfuser -d ctfdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
 networks:
   ctf_network:
