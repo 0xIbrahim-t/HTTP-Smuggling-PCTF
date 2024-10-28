@@ -6,7 +6,7 @@ DROP TABLE IF EXISTS blog_posts CASCADE;
 CREATE TABLE users (
     id SERIAL PRIMARY KEY,
     username VARCHAR(80) UNIQUE NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,  -- We'll store plain password here
     role VARCHAR(20) NOT NULL DEFAULT 'user',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -22,17 +22,12 @@ CREATE TABLE blog_posts (
     report_count INTEGER DEFAULT 0
 );
 
--- Create admin user with simple hash
+-- Create users with plain passwords
 INSERT INTO users (username, password_hash, role) 
 VALUES 
-    -- Admin user: username = admin, password = admin123
-    ('admin', 'pbkdf2:sha256:150000$lw9PORKq$d32c87b7457d2c52d61e8348f4197c10353998e87ebca3f97005d9cb6527d8a7', 'admin'),
-    
-    -- Regular user: username = user, password = user123
-    ('user', 'pbkdf2:sha256:150000$Q58zGcYA$062f0a8357d1aa0ad7367348f2f8550e1cf415ad14e698201ac29ceb450827b4', 'user'),
-    
-    -- Test user: username = test, password = test123
-    ('test', 'pbkdf2:sha256:150000$NmT7fprf$2ce986094c45eea24aabd8d9838abe52387ebd51739c82d54d0c32cb110289b2', 'user');
+    ('admin', 'admin123', 'admin'),
+    ('user', 'user123', 'user'),
+    ('test', 'test123', 'user');
 
 -- Create initial blog posts
 INSERT INTO blog_posts (title, content, author_id, created_at) 
