@@ -6,7 +6,7 @@ DROP TABLE IF EXISTS blog_posts CASCADE;
 CREATE TABLE users (
     id SERIAL PRIMARY KEY,
     username VARCHAR(80) UNIQUE NOT NULL,
-    password_hash VARCHAR(120) NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
     role VARCHAR(20) NOT NULL DEFAULT 'user',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -22,17 +22,17 @@ CREATE TABLE blog_posts (
     report_count INTEGER DEFAULT 0
 );
 
--- Create admin and test users with properly generated hashes
+-- Create admin user with simple hash
 INSERT INTO users (username, password_hash, role) 
 VALUES 
-    -- Admin user: username=admin, password=complex_admin_pass_123
-    ('admin', 'pbkdf2:sha256:600000$FkGrv0qQj8B2vHLX$b03c9186b377c557067fc56b6344caba91b22b4cfbd18d327b611962ead4c64c', 'admin'),
+    -- Admin user: username = admin, password = admin123
+    ('admin', 'pbkdf2:sha256:150000$lw9PORKq$d32c87b7457d2c52d61e8348f4197c10353998e87ebca3f97005d9cb6527d8a7', 'admin'),
     
-    -- Regular user: username=user, password=user123
-    ('user', 'pbkdf2:sha256:600000$eqwz5YrGTnCV8hBx$48e866ab8c14e59dddb8debea02453487878c75dec166140c38d0222303de497', 'user'),
+    -- Regular user: username = user, password = user123
+    ('user', 'pbkdf2:sha256:150000$Q58zGcYA$062f0a8357d1aa0ad7367348f2f8550e1cf415ad14e698201ac29ceb450827b4', 'user'),
     
-    -- Test user: username=test, password=test123
-    ('test', 'pbkdf2:sha256:600000$YqUzQEzOMKqcWLEo$37f6d2e1249c156f339322ca0c91dac71c4f751778cd2266384623fd15090d32', 'user');
+    -- Test user: username = test, password = test123
+    ('test', 'pbkdf2:sha256:150000$NmT7fprf$2ce986094c45eea24aabd8d9838abe52387ebd51739c82d54d0c32cb110289b2', 'user');
 
 -- Create initial blog posts
 INSERT INTO blog_posts (title, content, author_id, created_at) 
