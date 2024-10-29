@@ -2,7 +2,7 @@ from .. import db
 from datetime import datetime
 
 class BlogPost(db.Model):
-    __tablename__ = 'blog_posts'  # Explicit table name
+    __tablename__ = 'blog_posts'
     
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(200), nullable=False)
@@ -11,3 +11,6 @@ class BlogPost(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     is_reported = db.Column(db.Boolean, default=False)
     report_count = db.Column(db.Integer, default=0)
+
+    def __repr__(self):
+        return f'<BlogPost {self.id}>'
