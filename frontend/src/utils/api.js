@@ -16,15 +16,14 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Function to generate service auth
-const generateServiceAuth = (token, timestamp) => {
-  const raw = `${token}${timestamp}${process.env.REACT_APP_SERVICE_AUTH_SECRET || 'very_secret_key_456'}`;
-  return MD5(raw).toString();
-};
-
 export const auth = {
-  login: (username, password) => 
-    api.post('/api/auth/login', { username, password }),
+  login: (username, password) => {
+    console.log('Attempting login with:', { username, password });
+    return api.post('/api/auth/login', { 
+      username: username,
+      password: password 
+    });
+  },
   register: (username, password) => 
     api.post('/api/auth/register', { username, password }),
 };
@@ -52,6 +51,13 @@ export const admin = {
     });
   },
   getReports: () => api.get('/api/admin/reports'),
+};
+
+// Helper function to generate service auth
+const generateServiceAuth = (token, timestamp) => {
+  const secret = process.env.REACT_APP_SERVICE_AUTH_SECRET || 'very_secret_key_456';
+  const raw = `${token}${timestamp}${secret}`;
+  return MD5(raw).toString();
 };
 
 export default api;

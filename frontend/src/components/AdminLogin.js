@@ -13,12 +13,14 @@ const AdminLogin = () => {
     e.preventDefault();
     setError('');
     try {
+      console.log('Submitting with:', { username, password });  // Debug log
       const response = await auth.login(username, password);
+      console.log('Login response:', response.data);  // Debug log
       setAuthToken(response.data.token);
       navigate('/admin');
     } catch (error) {
-      console.error('Login error:', error);
-      setError('Invalid admin credentials');
+      console.error('Login error:', error.response?.data || error);  // Debug log
+      setError(error.response?.data?.error || 'Login failed');
     }
   };
 
