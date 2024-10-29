@@ -29,3 +29,36 @@ def generate_service_auth(jwt_token):
     secret = current_app.config['SERVICE_AUTH_SECRET']
     raw = f"{jwt_token}{timestamp}{secret}"
     return hashlib.md5(raw.encode()).hexdigest(), timestamp
+
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        token_payload = verify_jwt()
+        
+        if not token_payload or token_payload.get('role') != 'admin':
+            return jsonify({'error': 'Admin access required'}), 403
+            
+        # Verify X-Service-Auth header
+        service_auth = request.headers.get('X-Service-Auth')
+        timestamp = request.headers.get('X-Timestamp')
+        token = request.headers.get('Authorization', '').replace('Bearer ', '')
+        
+        if not service_auth or not timestamp:
+            return jsonify({'error': 'Missing required headers'}), 403
+            
+        expected_auth, _ = generate_service_auth(token)
+        
+        if service_auth != expected_auth:
+            return jsonify({'error': 'Invalid service auth'}), 403
+            
+        return f(*args, **kwargs)
+    return decorated_function
+
+def auth_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        token_payload = verify_jwt()
+        if not token_payload:
+            return jsonify({'error': 'Valid authentication required'}), 401
+        return f(*args, **kwargs)
+    return decorated_function

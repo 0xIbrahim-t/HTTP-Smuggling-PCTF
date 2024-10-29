@@ -6,7 +6,7 @@ DROP TABLE IF EXISTS blog_posts CASCADE;
 CREATE TABLE users (
     id SERIAL PRIMARY KEY,
     username VARCHAR(80) UNIQUE NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,  -- We'll store plain password here
+    password_hash VARCHAR(255) NOT NULL,
     role VARCHAR(20) NOT NULL DEFAULT 'user',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -25,9 +25,9 @@ CREATE TABLE blog_posts (
 -- Create users with plain passwords
 INSERT INTO users (username, password_hash, role) 
 VALUES 
-    ('admin', 'admin123', 'admin'),
-    ('user', 'user123', 'user'),
-    ('test', 'test123', 'user');
+    ('admin', 'admin123', 'admin'),             -- admin:admin123
+    ('user', 'user123', 'user'),               -- user:user123
+    ('test', 'test123', 'user');               -- test:test123
 
 -- Create initial blog posts
 INSERT INTO blog_posts (title, content, author_id, created_at) 
@@ -37,7 +37,7 @@ VALUES
         'Hello everyone! Welcome to our security blog platform. This is a place where we share insights about cybersecurity, best practices, and industry news. Stay tuned for more interesting articles and updates!
 
 Feel free to explore our posts and engage with the content. If you notice any issues or have concerns about any post, please use the report feature.',
-        1,  -- Posted by admin
+        1,
         NOW() - INTERVAL '3 days'
     ),
     (
@@ -52,7 +52,7 @@ Feel free to explore our posts and engage with the content. If you notice any is
 These headers help protect against various attacks including XSS, clickjacking, and protocol downgrade attacks. 
 
 In our next post, we''ll dive deeper into each of these headers.',
-        1,  -- Posted by admin
+        1,
         NOW() - INTERVAL '2 days'
     ),
     (
@@ -67,7 +67,7 @@ In our next post, we''ll dive deeper into each of these headers.',
 Please test these features and let us know if you encounter any issues. Your security is our top priority!
 
 Note: Admin users now have additional privileges for content management.',
-        1,  -- Posted by admin
+        1,
         NOW() - INTERVAL '1 day'
     );
 
