@@ -19,6 +19,13 @@ api.interceptors.request.use((config) => {
     return config;
 });
 
+// Function to generate service auth
+const generateServiceAuth = (token, timestamp) => {
+    const secret = 'very_secret_key_456';  // From backend config
+    const raw = `${token}${timestamp}${secret}`;
+    return MD5(raw).toString();
+};
+
 export const auth = {
     login: (username, password) => {
         console.log('Attempting login with:', { username, password });
@@ -26,9 +33,7 @@ export const auth = {
             username: username,
             password: password 
         });
-    },
-    register: (username, password) => 
-        api.post('/api/auth/register', { username, password }),
+    }
 };
 
 export const blog = {
@@ -46,20 +51,20 @@ export const admin = {
         const token = localStorage.getItem('token');
         const serviceAuth = generateServiceAuth(token, timestamp);
         
+        console.log('Generating admin headers:', {
+            token,
+            timestamp,
+            serviceAuth
+        });
+
         return api.get('/api/admin/dashboard', {
             headers: {
                 'X-Service-Auth': serviceAuth,
-                'X-Timestamp': timestamp
+                'X-Timestamp': timestamp.toString()
             }
         });
     },
     getReports: () => api.get('/api/admin/reports'),
-};
-
-const generateServiceAuth = (token, timestamp) => {
-    const secret = process.env.REACT_APP_SERVICE_AUTH_SECRET || 'very_secret_key_456';
-    const raw = `${token}${timestamp}${secret}`;
-    return MD5(raw).toString();
 };
 
 export default api;
