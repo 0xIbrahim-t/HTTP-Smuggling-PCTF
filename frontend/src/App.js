@@ -1,13 +1,13 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext';
 import Navbar from './components/Navbar';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
-import CreatePost from './pages/CreatePost';
+import CreatePostPage from './pages/CreatePost';
 import ViewPost from './pages/ViewPost';
 import AdminDashboard from './pages/AdminDashboard';
-import { AuthProvider } from './context/AuthContext';
 
 function App() {
   return (
@@ -20,7 +20,7 @@ function App() {
               <Route path="/" element={<Home />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
-              <Route path="/create-post" element={<CreatePost />} />
+              <Route path="/create-post" element={<CreatePostPage />} />
               <Route path="/post/:id" element={<ViewPost />} />
               <Route path="/admin" element={<AdminDashboard />} />
             </Routes>
