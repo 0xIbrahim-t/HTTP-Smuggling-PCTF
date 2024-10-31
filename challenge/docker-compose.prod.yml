@@ -1,0 +1,117 @@
+version: '3.8'
+
+services:
+  nginx:
+    build: 
+      context: ../nginx
+      args:
+        - ENVIRONMENT=production
+    ports:
+      - "443:443"
+      - "80:80"
+    depends_on:
+      - frontend
+      - backend
+    volumes:
+      - ../nginx/cert:/etc/nginx/cert
+    networks:
+      - ctf_network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  frontend:
+    build: 
+      context: ../frontend
+      args:
+        - ENVIRONMENT=production
+    environment:
+      - NODE_ENV=production
+      - REACT_APP_API_URL=https://api.localhost
+    networks:
+      - ctf_network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 512M
+
+  backend:
+    build: 
+      context: ../backend
+      args:
+        - ENVIRONMENT=production
+    environment:
+      - DATABASE_URL=postgresql://ctfuser:ctfpass@db:5432/ctfdb
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=${JWT_SECRET:-n0t_4_r34l_s3cr3t_1n_pr0duct10n}
+      - JWT_EXPIRATION=86400
+      - ADMIN_TOKEN=${ADMIN_TOKEN:-s3cr3t_4dm1n_t0k3n}
+      - FLAG=${FLAG:-CTF{http2_smuggl1ng_1s_fun_2024}}
+    depends_on:
+      - db
+      - redis
+    networks:
+      - ctf_network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 512M
+
+  db:
+    image: postgres:13-alpine
+    environment:
+      - POSTGRES_USER=ctfuser
+      - POSTGRES_PASSWORD=ctfpass
+      - POSTGRES_DB=ctfdb
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - ctf_network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 512M
+
+  redis:
+    image: redis:6-alpine
+    networks:
+      - ctf_network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 256M
+
+  admin-bot:
+    build: 
+      context: ../admin-bot
+      args:
+        - ENVIRONMENT=production
+    environment:
+      - ADMIN_USERNAME=admin
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-s3cur3_4dm1n_p4ss!}
+      - BACKEND_URL=http://backend:8000
+      - FRONTEND_URL=http://frontend:3000
+      - SERVICE_AUTH_SECRET=${SERVICE_AUTH_SECRET:-s3cr3t_4dm1n_t0k3n}
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - ctf_network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 512M
+
+networks:
+  ctf_network:
+    driver: bridge
+
+volumes:
+  postgres_data:

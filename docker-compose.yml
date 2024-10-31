@@ -1,0 +1,74 @@
+version: '3.8'
+
+services:
+  nginx:
+    build: ./nginx
+    ports:
+      - "443:443"
+      - "80:80"
+    depends_on:
+      - frontend
+      - backend
+    volumes:
+      - ./nginx/cert:/etc/nginx/cert
+    networks:
+      - ctf_network
+
+  frontend:
+    build: ./frontend
+    environment:
+      - REACT_APP_API_URL=https://api.localhost
+      - NODE_ENV=production
+    networks:
+      - ctf_network
+
+  backend:
+    build: ./backend
+    environment:
+      - DATABASE_URL=postgresql://ctfuser:ctfpass@db:5432/ctfdb
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=n0t_4_r34l_s3cr3t_1n_pr0duct10n
+      - JWT_EXPIRATION=24h
+      - ADMIN_TOKEN=s3cr3t_4dm1n_t0k3n
+      - FLAG=CTF{http2_smuggl1ng_1s_fun_2024}
+    depends_on:
+      - db
+      - redis
+    networks:
+      - ctf_network
+
+  db:
+    image: postgres:13-alpine
+    environment:
+      - POSTGRES_USER=ctfuser
+      - POSTGRES_PASSWORD=ctfpass
+      - POSTGRES_DB=ctfdb
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - ctf_network
+
+  redis:
+    image: redis:6-alpine
+    networks:
+      - ctf_network
+
+  admin-bot:
+    build: ./admin-bot
+    environment:
+      - ADMIN_USERNAME=admin
+      - ADMIN_PASSWORD=s3cur3_4dm1n_p4ss!
+      - BACKEND_URL=http://backend:8000
+      - FRONTEND_URL=http://frontend:3000
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - ctf_network
+
+networks:
+  ctf_network:
+    driver: bridge
+
+volumes:
+  postgres_data:
