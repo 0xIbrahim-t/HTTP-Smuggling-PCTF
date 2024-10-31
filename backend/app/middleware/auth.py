@@ -16,17 +16,21 @@ class AuthMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         if not auth_header:
-            if request.url.path.startswith("/api/admin"):
+            if request.url.path.startswith(("/api/admin", "/api/posts")):
                 raise HTTPException(status_code=401, detail="Unauthorized")
             return await call_next(request)
 
         try:
-            # Vulnerable: No validation of token signing method
             token = auth_header.split(" ")[1]
             payload = decode_jwt(token)
             request.state.user = payload
             
-            # Vulnerable: Doesn't validate admin role properly
+            # Check permissions for POST requests to /api/posts
+            if request.method == "POST" and request.url.path.startswith("/api/posts"):
+                if payload.get("role") != "admin":
+                    raise HTTPException(status_code=403, detail="Only admins can create posts")
+            
+            # Check admin routes
             if request.url.path.startswith("/api/admin"):
                 if payload.get("role") != "admin":
                     raise HTTPException(status_code=403, detail="Forbidden")

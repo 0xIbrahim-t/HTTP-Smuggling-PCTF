@@ -5,9 +5,18 @@ from ..models.post import Post
 from ..utils.security import hash_password
 import asyncio
 
+# ... previous imports ...
+
 def seed_data():
     db = SessionLocal()
     try:
+        # First check if data already exists
+        if db.query(User).first() is not None:
+            print("Database already seeded!")
+            return
+
+        print("Seeding database...")
+
         # Create admin user
         admin = User(
             username="admin",
@@ -29,24 +38,26 @@ def seed_data():
         )
         db.add(alice)
         db.add(bob)
+        
+        # Commit users first to get their IDs
         db.commit()
 
-        # Create initial posts
+        # Create initial posts (all from admin now)
         posts = [
             Post(
-                title="Welcome to CTF Blog",
-                content="This is the official blog platform. Happy hacking!",
+                title="Welcome to the Official Blog",
+                content="Welcome to our company blog! This platform is designed for official company announcements and updates. Only administrators can create posts, but all users can read and report posts if they find any issues.",
                 author_id=admin.id
             ),
             Post(
-                title="My First Post",
-                content="Hello everyone! This is my first post here.",
-                author_id=alice.id
+                title="Security Updates and Features",
+                content="We've recently upgraded our platform to use HTTP/2 for better performance and security. Please report any suspicious content or technical issues you encounter.",
+                author_id=admin.id
             ),
             Post(
-                title="Testing the Platform",
-                content="Just testing out this new blog platform!",
-                author_id=bob.id
+                title="Community Guidelines",
+                content="While this is a read-only blog for our users, we encourage active participation through the reporting feature. Help us maintain a safe and secure platform!",
+                author_id=admin.id
             )
         ]
         
@@ -54,9 +65,10 @@ def seed_data():
             db.add(post)
         
         db.commit()
+        print("Database seeded successfully!")
 
     except Exception as e:
-        print(f"Error seeding data: {e}")
+        print(f"Error seeding database: {e}")
         db.rollback()
     finally:
         db.close()

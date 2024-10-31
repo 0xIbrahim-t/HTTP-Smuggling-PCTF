@@ -13,7 +13,7 @@ const Navbar = () => {
             <Link to="/" className="text-xl font-bold">
               CTF Blog
             </Link>
-            {user && (
+            {user && user.role === 'admin' && (
               <Link to="/create-post" className="ml-8 hover:text-gray-300">
                 Create Post
               </Link>
