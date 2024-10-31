@@ -15,10 +15,18 @@ services:
       - ctf_network
 
   frontend:
-    build: ./frontend
+    build: 
+      context: ./frontend
+      args:
+        - HTTP_PROXY=""
+        - HTTPS_PROXY=""
+        - NO_PROXY="localhost,127.0.0.1"
     environment:
-      - REACT_APP_API_URL=https://api.localhost
+      - REACT_APP_API_URL=https://localhost
       - NODE_ENV=production
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
     networks:
       - ctf_network
 
