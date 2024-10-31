@@ -1,10 +1,16 @@
-FROM node:18-alpine
+# Build stage
+FROM node:18-slim as build
+
+# Increase Node's memory limit
+ENV NODE_OPTIONS=--max-old-space-size=4096
 
 WORKDIR /app
 
-# Install dependencies
+# Copy package files
 COPY package*.json ./
-RUN npm install
+
+# Install dependencies
+RUN npm install --legacy-peer-deps
 
 # Copy source code
 COPY . .
@@ -12,10 +18,19 @@ COPY . .
 # Build the application
 RUN npm run build
 
-# Install serve to run the built application
+# Production stage
+FROM node:18-slim
+
+WORKDIR /app
+
+# Install serve
 RUN npm install -g serve
 
+# Copy built files from build stage
+COPY --from=build /app/build ./build
+
+# Expose port
 EXPOSE 3000
 
-# Run the application
+# Start the application
 CMD ["serve", "-s", "build", "-l", "3000"]
