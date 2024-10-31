@@ -4,10 +4,10 @@ FROM node:18-slim as build
 WORKDIR /app
 
 # Copy package files
-COPY package*.json ./
+# COPY package*.json ./
 
 # Basic install without extra flags
-RUN npm install --legacy-peer-deps
+# RUN npm install --legacy-peer-deps
 
 # Copy source code
 COPY . .
