@@ -1,6 +1,6 @@
-import os
 from typing import Optional
 from pydantic_settings import BaseSettings
+from pydantic import Field
 
 class Settings(BaseSettings):
     # Database
@@ -26,8 +26,9 @@ class Settings(BaseSettings):
     
     # CSP Settings - Intentionally vulnerable
     CSP_NONCE_LENGTH: int = 8
-    
+
     class Config:
+        env_file = ".env"
         case_sensitive = True
 
 settings = Settings()
