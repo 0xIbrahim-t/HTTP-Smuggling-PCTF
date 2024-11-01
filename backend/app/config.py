@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     # JWT Settings
     JWT_SECRET: str = "n0t_4_r34l_s3cr3t_1n_pr0duct10n"
     JWT_ALGORITHM: str = "HS256"
-    JWT_EXPIRATION: int = 86400  # 24 hours
+    JWT_EXPIRATION: int = 86400  # 24 hours in seconds
     
     # Admin Settings
     ADMIN_TOKEN: str = "s3cr3t_4dm1n_t0k3n"

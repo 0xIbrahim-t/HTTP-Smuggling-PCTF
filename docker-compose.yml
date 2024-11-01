@@ -15,10 +15,9 @@ services:
       - ctf_network
 
   frontend:
-    build: 
-      context: ./frontend
+    build: ./frontend
     environment:
-      - REACT_APP_API_URL=https://localhost
+      - REACT_APP_API_URL=https://YOUR_IP_ADDRESS
       - NODE_ENV=production
     networks:
       - ctf_network
@@ -29,7 +28,7 @@ services:
       - DATABASE_URL=postgresql://ctfuser:ctfpass@db:5432/ctfdb
       - REDIS_URL=redis://redis:6379
       - JWT_SECRET=n0t_4_r34l_s3cr3t_1n_pr0duct10n
-      - JWT_EXPIRATION=24h
+      - JWT_EXPIRATION=86400
       - ADMIN_TOKEN=s3cr3t_4dm1n_t0k3n
       - FLAG=CTF{http2_smuggl1ng_1s_fun_2024}
     depends_on:
