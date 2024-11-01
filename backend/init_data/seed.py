@@ -1,11 +1,9 @@
+import asyncio
 from sqlalchemy.orm import Session
 from ..database.session import SessionLocal, init_db
 from ..models.user import User, UserRole
 from ..models.post import Post
 from ..utils.security import hash_password
-import asyncio
-
-# ... previous imports ...
 
 def seed_data():
     db = SessionLocal()
@@ -42,21 +40,21 @@ def seed_data():
         # Commit users first to get their IDs
         db.commit()
 
-        # Create initial posts (all from admin now)
+        # Create initial posts
         posts = [
             Post(
-                title="Welcome to the Official Blog",
-                content="Welcome to our company blog! This platform is designed for official company announcements and updates. Only administrators can create posts, but all users can read and report posts if they find any issues.",
+                title="Welcome to the Blog Platform",
+                content="Hello everyone! Welcome to our new blog platform. We've recently upgraded to HTTP/2 for better performance!",
                 author_id=admin.id
             ),
             Post(
-                title="Security Updates and Features",
-                content="We've recently upgraded our platform to use HTTP/2 for better performance and security. Please report any suspicious content or technical issues you encounter.",
+                title="Security Updates",
+                content="We've implemented several security measures to keep our platform safe.",
                 author_id=admin.id
             ),
             Post(
-                title="Community Guidelines",
-                content="While this is a read-only blog for our users, we encourage active participation through the reporting feature. Help us maintain a safe and secure platform!",
+                title="Platform Guidelines",
+                content="Please read our community guidelines and help us maintain a secure environment.",
                 author_id=admin.id
             )
         ]
@@ -74,5 +72,7 @@ def seed_data():
         db.close()
 
 if __name__ == "__main__":
+    # Create tables first
     asyncio.run(init_db())
+    # Then seed data
     seed_data()

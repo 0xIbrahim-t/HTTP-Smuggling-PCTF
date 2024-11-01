@@ -1,6 +1,6 @@
 FROM python:3.11-slim
 
-WORKDIR /app
+WORKDIR /backend
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -15,7 +15,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Create necessary directories
-RUN mkdir -p /app/logs
+RUN mkdir -p /backend/logs
+
+# Make the startup script executable
+COPY startup.sh .
+RUN chmod +x startup.sh
 
 # Run migrations and seed data on startup
-CMD ["sh", "-c", "python -m app.init_data.seed && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+CMD ["./startup.sh"]
