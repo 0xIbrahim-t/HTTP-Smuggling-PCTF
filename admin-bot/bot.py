@@ -110,6 +110,15 @@ class AdminBot:
         try:
             driver = webdriver.Chrome(options=self.options)
             
+            # Set up request interceptor for admin headers
+            driver.execute_cdp_cmd('Network.setExtraHTTPHeaders', {
+                'headers': {
+                    'Authorization': f'Bearer {self.admin_token}',
+                    'X-Admin-Request': 'true'  # Additional admin identifier
+                }
+            })
+            
+            # Set admin token in localStorage
             driver.execute_script(
                 f"localStorage.setItem('token', '{self.admin_token}')"
             )
@@ -130,8 +139,14 @@ class AdminBot:
                         raise
                     time.sleep(2)
             
-            # Wait for content to load and potential XSS
+            # Wait a moment for potential XSS
             time.sleep(5)
+            
+            # Check cache status from response headers
+            cache_status = driver.execute_script(
+                "return window.performance.getEntriesByType('navigation')[0].responseHeaders"
+            )
+            logger.info(f"Cache status: {cache_status}")
             
             return {"status": "success", "message": "Post visited"}
             

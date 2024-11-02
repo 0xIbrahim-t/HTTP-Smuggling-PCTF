@@ -4,6 +4,7 @@ from ..models.user import User
 from .. import db
 from ..utils.auth import verify_jwt
 from ..middleware.auth_required import auth_required
+from ..middleware.admin_required import admin_required
 import random
 import string
 import requests
@@ -15,7 +16,7 @@ def generate_nonce():
     return ''.join(random.choices(string.ascii_letters + string.digits, k=16))
 
 @bp.route('/post', methods=['POST'])
-@auth_required
+@admin_required
 def create_post():
     payload = verify_jwt()
     data = request.get_json()
