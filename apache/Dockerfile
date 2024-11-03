@@ -22,18 +22,14 @@ COPY generate-certs.sh /usr/local/bin/
 # Make scripts executable
 RUN chmod +x /usr/local/bin/generate-certs.sh
 
-# Load modules
+# First enable MPM module, then others
 RUN sed -i \
-    -e 's/#\(LoadModule proxy_module modules\/mod_proxy.so\)/\1/' \
-    -e 's/#\(LoadModule proxy_http_module modules\/mod_proxy_http.so\)/\1/' \
-    -e 's/#\(LoadModule proxy_http2_module modules\/mod_proxy_http2.so\)/\1/' \
-    -e 's/#\(LoadModule ssl_module modules\/mod_ssl.so\)/\1/' \
+    -e 's/#\(LoadModule mpm_event_module modules\/mod_mpm_event.so\)/\1/' \
+    /usr/local/apache2/conf/httpd.conf
+
+# Enable other modules after MPM
+RUN sed -i \
     -e 's/#\(LoadModule socache_shmcb_module modules\/mod_socache_shmcb.so\)/\1/' \
-    -e 's/#\(LoadModule http2_module modules\/mod_http2.so\)/\1/' \
-    -e 's/#\(LoadModule cache_module modules\/mod_cache.so\)/\1/' \
-    -e 's/#\(LoadModule cache_disk_module modules\/mod_cache_disk.so\)/\1/' \
-    -e 's/#\(LoadModule headers_module modules\/mod_headers.so\)/\1/' \
-    -e 's/#\(LoadModule rewrite_module modules\/mod_rewrite.so\)/\1/' \
     -e 's/#\(LoadModule lua_module modules\/mod_lua.so\)/\1/' \
     /usr/local/apache2/conf/httpd.conf
 
