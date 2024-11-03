@@ -1,113 +1,88 @@
--- /etc/apache2/lua/cache_control.lua
+-- File: apache/cache_control.lua
 
--- Function to check if a request has potential smuggling headers
-function has_smuggling_headers(r)
-    local cl = r.headers_in['Content-Length']
-    local te = r.headers_in['Transfer-Encoding']
-    return cl and te
-end
-
--- Function to extract token from Authorization header
-function extract_admin_token(auth_header)
-    if auth_header and auth_header:match("Bearer%s+(.+)") then
-        return auth_header:match("Bearer%s+(.+)")
+-- Check if file exists
+function file_exists(path)
+    local f = io.open(path, "rb")
+    if f then 
+        f:close()
+        return true
     end
-    return nil
+    return false
 end
 
 function check_and_manage_cache(r)
-    -- Get environment variables and headers
+    -- Get headers
     local auth_header = r.headers_in['Authorization']
-    local x_admin_request = r.headers_in['X-Admin-Request']
-    local cache_enabled = r:getenv("CACHE_ENABLED")
-    local cache_control_valid = r:getenv("CACHE_CONTROL_VALID")
+    local x_admin = r.headers_in['X-Admin-Request']
     
-    -- Check if request is from admin bot
+    -- Check special headers for cache poisoning
+    if r.headers_in['X-Special-Key'] == 'special-cache-key-123' and 
+       r.headers_in['X-Cache-Control'] == 'need-cache' then
+        r.notes["cache_enabled"] = "1"
+    end
+    
+    -- Check if admin request
     local is_admin = false
-    if auth_header and x_admin_request == 'true' then
-        local token = extract_admin_token(auth_header)
-        if token then
-            is_admin = true
-            r:setenv("IS_ADMIN", "1")
-        end
+    if auth_header and auth_header:match("Bearer.*role.*admin") then
+        is_admin = true
+        r.notes["is_admin"] = "1"
     end
     
-    -- Function to check if file exists
-    local function file_exists(path)
-        local file = io.open(path, "rb")
-        if file then file:close() return true end
-        return false
-    end
-    
-    -- Generate cache path based on URI and query string
-    local uri = r:uri()
-    local args = r:args()
+    -- Generate cache path
+    local uri = r.uri
     local cache_key = uri
-    if args and args ~= "" then
-        cache_key = cache_key .. "?" .. args
-    end
     
-    -- Hash the cache key to create filename
+    -- Hash the cache key
     local hash = ""
     for i = 1, #cache_key do
-        hash = hash .. string.format("%02x", string.byte(cache_key, i))
+        hash = hash .. string.format("%02x", string.byte(cache_key:sub(i,i)))
     end
-    local cache_path = string.format("/var/cache/apache2/cache_%s", hash)
+    local cache_path = "/var/cache/apache2/cache_" .. hash
     
-    -- Store cache path for later use
-    r:setenv("CACHE_PATH", cache_path)
+    -- Store cache path
+    r.notes["cache_path"] = cache_path
     
-    -- Log request details
-    r:info(string.format("[Cache] Request: %s %s", r:method(), cache_key))
-    r:info(string.format("[Cache] Path: %s", cache_path))
-    
-    -- Handle caching logic
-    if cache_enabled == "1" and cache_control_valid == "1" then
-        -- This is a request that wants to set cache
-        r:setenv("CACHE_THIS", "1")
-        r:info("[Cache] Caching enabled for request")
-        
-        -- If this is a smuggling attempt, log it
-        if has_smuggling_headers(r) then
-            r:info("[Cache] Potential HTTP smuggling detected")
-        end
-        
-        return apache2.OK
-    end
+    -- Log request
+    r:info("[Cache] Request: " .. r.method .. " " .. uri)
+    r:info("[Cache] Cache path: " .. cache_path)
     
     -- Check for cached content
     if file_exists(cache_path) then
-        r:info("[Cache] Cached content exists")
-        r:setenv("SERVE_CACHE", "1")
+        r:info("[Cache] Cache exists")
         
-        -- Only set delete flag if admin
-        if is_admin then
-            r:info("[Cache] Admin accessing cached content - will delete after serve")
-            r:setenv("DELETE_AFTER_SERVE", "1")
-            r:headers_out():set("X-Cache-Admin-View", "true")
-            r:headers_out():set("X-Cache-Will-Delete", "true")
+        -- Set cache hit header
+        if r.headers_out then
+            r.headers_out['X-Cache-Hit'] = 'true'
         end
         
-        -- Add cache hit header for everyone
-        r:headers_out():set("X-Cache-Hit", "true")
+        -- If admin, mark for deletion
+        if is_admin then
+            r:info("[Cache] Admin access - will delete")
+            r.notes["delete_after_serve"] = "1"
+            
+            if r.headers_out then
+                r.headers_out['X-Cache-Admin-View'] = 'true'
+            end
+        end
     end
     
     return apache2.OK
 end
 
--- Function to handle response and cleanup
 function handle_response(r)
-    if r:getenv("DELETE_AFTER_SERVE") == "1" then
-        local cache_path = r:getenv("CACHE_PATH")
-        if cache_path then
-            -- Delete the cache file only after admin view
+    -- Check if we need to delete cache
+    if r.notes["delete_after_serve"] == "1" then
+        local cache_path = r.notes["cache_path"]
+        if cache_path and cache_path ~= "" then
+            -- Delete cache file
             os.remove(cache_path)
-            r:info(string.format("[Cache] Admin viewed - deleted cache: %s", cache_path))
+            r:info("[Cache] Deleted: " .. cache_path)
             
-            -- Add headers to help with exploitation
-            r:headers_out():set("X-Cache-Deleted", "true")
-            r:headers_out():set("X-Cache-Path", cache_path)
+            if r.headers_out then
+                r.headers_out['X-Cache-Deleted'] = 'true'
+            end
         end
     end
+    
     return apache2.OK
 end
