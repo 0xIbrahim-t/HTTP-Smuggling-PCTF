@@ -1,11 +1,14 @@
 version: '3.8'
 
 services:
-  nginx:
-    build: ./nginx
+  webserver:
+    build: ./apache
     ports:
       - "443:443"
       - "80:80"
+    volumes:
+      - ./apache/certs:/etc/apache2/certs
+      - ./apache/cache:/var/cache/apache2
     depends_on:
       - frontend
       - backend
@@ -43,7 +46,7 @@ services:
     environment:
       - ADMIN_USERNAME=admin
       - ADMIN_PASSWORD=admin123
-      - BASE_URL=http://nginx
+      - BASE_URL=http://webserver
       - PYTHONUNBUFFERED=1
     depends_on:
       frontend:
