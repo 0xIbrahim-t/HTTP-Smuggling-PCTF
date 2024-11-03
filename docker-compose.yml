@@ -6,6 +6,8 @@ services:
     ports:
       - "443:443"
       - "80:80"
+    environment:
+      - SERVER_NAME=54.198.62.41  # Your server IP
     volumes:
       - ./apache/certs:/etc/apache2/certs
       - ./apache/cache:/var/cache/apache2
