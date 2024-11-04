@@ -15,7 +15,7 @@ app = Flask(__name__)
 
 class AdminBot:
     def __init__(self):
-        self.base_url = os.getenv('BASE_URL', 'http://nginx')
+        self.base_url = os.getenv('BASE_URL', 'http://webserver')
         self.admin_username = os.getenv('ADMIN_USERNAME', 'admin')
         self.admin_password = os.getenv('ADMIN_PASSWORD', 'admin123')
         self.admin_token = None
