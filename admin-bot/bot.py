@@ -25,11 +25,9 @@ class AdminBot:
         chrome_options.add_argument('--no-sandbox')
         chrome_options.add_argument('--disable-dev-shm-usage')
         chrome_options.add_argument('--disable-gpu')
-        # Ignore SSL errors
         chrome_options.add_argument('--ignore-certificate-errors')
         chrome_options.add_argument('--ignore-ssl-errors')
         chrome_options.add_argument('--ignore-certificate-errors-spki-list')
-        # For CTF vulnerability
         chrome_options.add_argument('--disable-web-security')
         chrome_options.add_argument('--allow-running-insecure-content')
         
@@ -40,27 +38,19 @@ class AdminBot:
         driver = None
         try:
             driver = webdriver.Chrome(options=self.options)
+            
+            # First visit home page
+            logger.info("Loading home page first...")
+            driver.get(self.base_url)
+            time.sleep(2)
+            
             login_url = f"{self.base_url}/admin/login"
             logger.info(f"Accessing login page: {login_url}")
-            
-            # Get the login page with retry
-            max_retries = 3
-            for attempt in range(max_retries):
-                try:
-                    driver.get(login_url)
-                    logger.debug(f"Successfully loaded login page on attempt {attempt + 1}")
-                    break
-                except Exception as e:
-                    logger.error(f"Attempt {attempt + 1} failed: {str(e)}")
-                    if attempt == max_retries - 1:
-                        raise
-                    time.sleep(2)
+            driver.get(login_url)
+            time.sleep(2)
 
-            time.sleep(2)  # Wait for page load
-            
             logger.debug(f"Page title: {driver.title}")
             logger.debug(f"Current URL: {driver.current_url}")
-            logger.debug(f"Page source: {driver.page_source[:500]}")
             
             # Find and fill username
             username_input = WebDriverWait(driver, 10).until(
@@ -81,6 +71,11 @@ class AdminBot:
             # Wait for login to complete
             time.sleep(2)
             
+            # Go to home page to ensure proper context
+            logger.debug("Going to home page to get token")
+            driver.get(self.base_url)
+            time.sleep(2)
+            
             # Get token from localStorage
             self.admin_token = driver.execute_script(
                 "return localStorage.getItem('token')"
@@ -90,6 +85,7 @@ class AdminBot:
                 raise Exception("Failed to get admin token")
             
             logger.info("Admin login successful")
+            logger.debug(f"Admin token obtained: {self.admin_token[:20]}...")
                 
         except Exception as e:
             logger.error(f"Admin login failed: {str(e)}")
@@ -110,45 +106,48 @@ class AdminBot:
         try:
             driver = webdriver.Chrome(options=self.options)
             
-            # Set up request interceptor for admin headers
-            driver.execute_cdp_cmd('Network.setExtraHTTPHeaders', {
-                'headers': {
-                    'Authorization': f'Bearer {self.admin_token}',
-                    'X-Admin-Request': 'true'  # Additional admin identifier
-                }
-            })
-            
-            # Set admin token in localStorage
+            # First establish proper page context
+            logger.info("Loading home page first...")
+            driver.get(self.base_url)
+            time.sleep(2)
+
+            # Set token in localStorage now that we have a proper context
+            logger.debug("Setting admin token in localStorage")
             driver.execute_script(
                 f"localStorage.setItem('token', '{self.admin_token}')"
             )
             
+            # Set up request interceptor for admin headers
+            logger.debug("Setting up admin headers")
+            driver.execute_cdp_cmd('Network.setExtraHTTPHeaders', {
+                'headers': {
+                    'Authorization': f'Bearer {self.admin_token}',
+                    'X-Admin-Request': 'true'
+                }
+            })
+            
+            # Visit the post
             post_url = f"{self.base_url}/post/{post_id}"
             logger.info(f"Accessing post URL: {post_url}")
             
-            # Get the post page with retry
-            max_retries = 3
-            for attempt in range(max_retries):
-                try:
-                    driver.get(post_url)
-                    logger.debug(f"Successfully loaded post on attempt {attempt + 1}")
-                    break
-                except Exception as e:
-                    logger.error(f"Attempt {attempt + 1} failed: {str(e)}")
-                    if attempt == max_retries - 1:
-                        raise
-                    time.sleep(2)
+            driver.get(post_url)
+            logger.debug("Post page loaded")
             
-            # Wait a moment for potential XSS
+            # Wait for potential XSS
+            logger.debug("Waiting for potential XSS execution...")
             time.sleep(5)
             
-            # Check cache status from response headers
-            cache_status = driver.execute_script(
-                "return window.performance.getEntriesByType('navigation')[0].responseHeaders"
-            )
-            logger.info(f"Cache status: {cache_status}")
+            # Log current state
+            logger.debug(f"Current URL: {driver.current_url}")
+            logger.debug(f"Page title: {driver.title}")
             
-            return {"status": "success", "message": "Post visited"}
+            # Check localStorage after visit
+            token_check = driver.execute_script(
+                "return localStorage.getItem('token')"
+            )
+            logger.debug(f"Token still in localStorage: {bool(token_check)}")
+            
+            return {"status": "success", "message": "Post visited successfully"}
             
         except Exception as e:
             logger.error(f"Error visiting post: {str(e)}")
@@ -169,7 +168,7 @@ def visit_reported_post():
         if not post_id:
             return {"error": "Missing post_id parameter"}, 400
             
-        logger.info(f"Visiting post {post_id}")
+        logger.info(f"Received visit request for post {post_id}")
         return admin_bot.visit_post(post_id)
         
     except Exception as e:
