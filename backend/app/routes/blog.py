@@ -31,7 +31,7 @@ def create_post():
     
     return jsonify({'id': post.id})
 
-@bp.route('/posts', methods=['GET'])
+@bp.route('/post/<int:post_id>', methods=['GET'])
 @auth_required
 def get_post(post_id):
     try:
