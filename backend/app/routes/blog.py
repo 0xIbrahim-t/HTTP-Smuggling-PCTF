@@ -74,32 +74,6 @@ def get_post(post_id):
         print(f"Error in get_post: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
-@bp.route('/post/<int:post_id>', methods=['GET'])
-@auth_required
-def get_post(post_id):
-    post = BlogPost.query.get_or_404(post_id)
-    
-    # Make response format depend on Accept header
-    if request.headers.get('Accept') == 'text/html':
-        # If HTML is requested, return content directly without JSON
-        response = make_response(post.content)
-        response.headers['Content-Type'] = 'text/html'
-    else:
-        # Default JSON response
-        response = jsonify({
-            'id': post.id,
-            'title': post.title,
-            'content': post.content,
-            'author': User.query.get(post.author_id).username,
-            'created_at': post.created_at.isoformat()
-        })
-    
-    # Allow caching based on X-Special-Key
-    if request.headers.get('X-Special-Key') == 'secret_cache_key':
-        response.headers['Cache-Control'] = 'public, max-age=300'
-        
-    return response
-
 @bp.route('/report', methods=['POST'])
 @auth_required
 def report_post():
