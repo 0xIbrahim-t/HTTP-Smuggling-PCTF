@@ -25,7 +25,7 @@ const BlogPost = () => {
   return (
     <div className="container">
       <h1>{post.title}</h1>
-      <p>By {post.author} on {new Date(post.created_at).toLocaleDateString()}</p>
+      <p>By {post.author}</p>
       <div dangerouslySetInnerHTML={{ __html: post.content }} />
       <ReportButton postId={post.id} />
     </div>

@@ -89,12 +89,12 @@ def report_post():
 # Vulnerable to HTTP Request Smuggling
 @bp.before_request
 def handle_smuggling():
-    """
-    Vulnerable implementation that doesn't properly handle
-    Content-Length and Transfer-Encoding headers
-    """
+    # Current version only checks Content-Length
+    # Change to this more vulnerable version:
     if request.method == 'POST':
-        content_length = request.headers.get('Content-Length')
-        if content_length and int(content_length) > 0:
-            # Process normally, allowing for smuggling
+        if 'Transfer-Encoding' in request.headers:
+            # Vulnerable: Process chunked without proper validation
+            pass
+        if 'Content-Length' in request.headers:
+            # Vulnerable: Don't validate against Transfer-Encoding
             pass
