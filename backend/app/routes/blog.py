@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, make_response
 from ..models.blog import BlogPost
 from ..models.user import User
 from .. import db
@@ -33,21 +33,46 @@ def create_post():
 
 @bp.route('/posts', methods=['GET'])
 @auth_required
-def get_posts():
-    posts = BlogPost.query.all()
-    nonce = generate_nonce()
-    
-    response = jsonify([{
-        'id': post.id,
-        'title': post.title,
-        'content': post.content,
-        'author': User.query.get(post.author_id).username,
-        'created_at': post.created_at.isoformat()
-    } for post in posts])
-    
-    # Vulnerable CSP implementation
-    response.headers['Content-Security-Policy'] = f"script-src 'nonce-{nonce}' 'strict-dynamic'"
-    return response
+def get_post(post_id):
+    try:
+        post = BlogPost.query.get_or_404(post_id)
+        
+        # If HTML requested, render as blog post
+        if 'text/html' in request.headers.get('Accept', ''):
+            # Intentionally vulnerable - directly inserting content without escaping
+            html_content = f'''
+            <div class="blog-post">
+                <h1>{post.title}</h1>
+                <div class="post-meta">
+                    <span>Author: {User.query.get(post.author_id).username}</span>
+                    <span>Date: {post.created_at.strftime('%B %d, %Y')}</span>
+                </div>
+                <div class="post-content">
+                    {post.content}
+                </div>
+            </div>
+            '''
+            response = make_response(html_content)
+            response.headers['Content-Type'] = 'text/html'
+        else:
+            # Default JSON response
+            response = jsonify({
+                'id': post.id,
+                'title': post.title,
+                'content': post.content,
+                'author': User.query.get(post.author_id).username,
+                'created_at': post.created_at.isoformat()
+            })
+        
+        # Cache headers
+        if request.headers.get('X-Special-Key') == 'secret_cache_key':
+            response.headers['Cache-Control'] = 'public, max-age=300'
+            
+        return response
+        
+    except Exception as e:
+        print(f"Error in get_post: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 @bp.route('/post/<int:post_id>', methods=['GET'])
 @auth_required

