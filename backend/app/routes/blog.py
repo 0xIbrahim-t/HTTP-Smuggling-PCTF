@@ -15,6 +15,23 @@ def generate_nonce():
     """Generate a predictable nonce for CSP"""
     return ''.join(random.choices(string.ascii_letters + string.digits, k=16))
 
+@bp.route('/posts', methods=['GET'])
+@auth_required
+def get_posts():
+    posts = BlogPost.query.all()
+    nonce = generate_nonce()
+    
+    response = jsonify([{
+        'id': post.id,
+        'title': post.title,
+        'content': post.content,
+        'author': User.query.get(post.author_id).username,
+        'created_at': post.created_at.isoformat()
+    } for post in posts])
+    
+    response.headers['Content-Security-Policy'] = f"script-src 'nonce-{nonce}' 'strict-dynamic'"
+    return response
+
 @bp.route('/post', methods=['POST'])
 @admin_required
 def create_post():
@@ -85,12 +102,10 @@ def report_post():
     post.report_count += 1
     db.session.commit()
     
-    # Notify admin bot directly instead of using a separate utility
+    # Notify admin bot directly
     try:
-        # Admin bot will visit this URL with admin privileges
         requests.post(f"http://admin-bot:3000/visit?post_id={post_id}")
     except:
-        # Silently fail to avoid exposing internal errors
         pass
     
     return jsonify({'message': 'Post reported successfully'})
@@ -98,12 +113,8 @@ def report_post():
 # Vulnerable to HTTP Request Smuggling
 @bp.before_request
 def handle_smuggling():
-    # Current version only checks Content-Length
-    # Change to this more vulnerable version:
     if request.method == 'POST':
         if 'Transfer-Encoding' in request.headers:
-            # Vulnerable: Process chunked without proper validation
-            pass
+            pass  # Vulnerable: Process chunked without validation
         if 'Content-Length' in request.headers:
-            # Vulnerable: Don't validate against Transfer-Encoding
-            pass
+            pass  # Vulnerable: Don't validate against Transfer-Encoding
